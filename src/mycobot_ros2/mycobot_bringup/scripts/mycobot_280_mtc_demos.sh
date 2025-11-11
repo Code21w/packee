@@ -11,7 +11,11 @@ if [[ ! " ${valid_exe_options[@]} " =~ " $exe_option " ]]; then
     printf '%s\n' "${valid_exe_options[@]}"
     exit 1
 fi
- 
+
+# Use a writable log directory to avoid immutable ~/.ros/log failures
+export ROS_LOG_DIR="${HOME}/packee/log/ros"
+mkdir -p "${ROS_LOG_DIR}"
+
 cleanup() {
     echo "Cleaning up..."
     sleep 5.0

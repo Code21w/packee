@@ -59,4 +59,4 @@ gripper_action_controller:
     max_effort: 100.0
     allow_stalling: false
     stall_velocity_threshold: 0.001
-    stall_timeout: 3.0
+    stall_timeout: 1.0

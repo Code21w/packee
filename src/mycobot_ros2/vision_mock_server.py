@@ -33,6 +33,15 @@ class VisionDetectMock(Node):
         self._strict = strict
         self._default_confidence = 1.0
         self._default_arm_side = 'left'
+        # Update these coordinates as needed; the mock cycles through them per request.
+        self._pose_sequence = [
+            {'x': 0.11, 'y': -0.175, 'z': 0.015, 'rx': 0.0, 'ry': 1.5707, 'rz': 0.0},  # 1
+            {'x': 0.078, 'y': -0.210, 'z': 0.02, 'rx': 0.0, 'ry': 1.5707, 'rz': 0.0},  # 2
+            {'x': 0.1115, 'y': -0.053, 'z': 0.02, 'rx': 0.0, 'ry': 1.5707, 'rz': 0.0},  # 3
+            {'x': 0.1115, 'y': -0.1015, 'z': 0.0135, 'rx': 0.0, 'ry': 1.5707, 'rz': 0.0},  # 4
+            {'x': 0.164, 'y': -0.161, 'z': 0.027, 'rx': 0.0, 'ry': 1.5707, 'rz': 0.0},   # 5
+        ]
+        self._pose_index = 0
 
         self._service = self.create_service(
             PackeeVisionDetectProductsInCart,
@@ -89,14 +98,34 @@ class VisionDetectMock(Node):
         return False, self._failure_message.format(product_id=product_id)
 
     def _make_detected_product(self, product_id: int) -> DetectedProduct:
+        pose = self._next_pose()
         product = DetectedProduct()
         product.product_id = product_id
         product.confidence = self._default_confidence
         product.bbox = BBox()
         product.bbox_number = 0
-        product.pose = Pose6D()
+        product.pose = pose
         product.arm_side = self._default_arm_side
         return product
+
+    def _next_pose(self) -> Pose6D:
+        pose = Pose6D()
+        if not self._pose_sequence:
+            return pose
+
+        coordinates = self._pose_sequence[self._pose_index]
+        pose.x = coordinates['x']
+        pose.y = coordinates['y']
+        pose.z = coordinates['z']
+        pose.rx = coordinates['rx']
+        pose.ry = coordinates['ry']
+        pose.rz = coordinates['rz']
+
+        # Advance until we reach the last configured pose; no wrap-around.
+        if self._pose_index < len(self._pose_sequence) - 1:
+            self._pose_index += 1
+
+        return pose
 
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:

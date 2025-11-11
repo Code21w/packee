@@ -12,10 +12,12 @@ from launch import LaunchDescription
 from launch.actions import (
     AppendEnvironmentVariable,
     DeclareLaunchArgument,
-    IncludeLaunchDescription
+    IncludeLaunchDescription,
+    RegisterEventHandler,
 )
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.event_handlers import OnProcessExit
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -264,10 +266,15 @@ def generate_launch_description():
     # Add the actions to the launch description
     ld.add_action(set_env_vars_resources)
     ld.add_action(robot_state_publisher_cmd)
-    ld.add_action(load_controllers_cmd)
     ld.add_action(start_gazebo_cmd)
     ld.add_action(start_gazebo_ros_bridge_cmd)
     ld.add_action(start_gazebo_ros_image_bridge_cmd)
     ld.add_action(start_gazebo_ros_spawner_cmd)
+    ld.add_action(RegisterEventHandler(
+        event_handler=OnProcessExit(
+            target_action=start_gazebo_ros_spawner_cmd,
+            on_exit=[load_controllers_cmd],
+        )
+    ))
 
     return ld

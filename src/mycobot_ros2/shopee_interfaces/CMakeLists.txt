@@ -84,8 +84,8 @@ set(srv_files
   "srv/PickeeWorkflowReturnToStaff.srv"
   "srv/PickeeWorkflowStartTask.srv"
   "srv/VisionCheckCartPresence.srv"
-  "srv/StartMtc.srv"
   "srv/PackeeArmPackingComplete.srv"
+  "srv/PackeeMainStartMTC.srv"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}

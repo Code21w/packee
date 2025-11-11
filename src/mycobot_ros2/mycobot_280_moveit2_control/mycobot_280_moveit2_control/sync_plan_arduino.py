@@ -38,6 +38,8 @@ class Slider_Subscriber(Node):
             1
         )
         self.subscription
+        # 최신 관절 상태를 누적해 arm+gripper 데이터가 동시에 존재할 때만 명령을 보낸다.
+        self.latest_joint_positions = {}
         
         self.robot_m5 = os.popen("ls /dev/ttyUSB0").readline()[:-1]
         self.robot_wio = os.popen("ls /dev/ttyACM*").readline()[:-1]
@@ -66,18 +68,23 @@ class Slider_Subscriber(Node):
         ]
 
     def listener_callback(self, msg):
-        joint_state_dict = {name: msg.position[i] for i, name in enumerate(msg.name)}
-        data_list = []
-        for joint in self.rviz_order:
-            if joint in joint_state_dict:
-                radians_to_angles = round(math.degrees(joint_state_dict[joint]), 3)
-                data_list.append(radians_to_angles)
+        for name, position in zip(msg.name, msg.position):
+            self.latest_joint_positions[name] = position
 
-        gripper_list = []
-        for gripper in self.gripper_order:
-            if gripper in joint_state_dict:
-                    value_1_100 = map_rad_to_1_100(joint_state_dict[gripper])
-                    gripper_list.append(value_1_100)
+        # arm과 gripper 관절이 모두 들어온 최신 상태가 아니면 아무 것도 하지 않는다.
+        if not all(joint in self.latest_joint_positions for joint in self.rviz_order):
+            return
+        if not all(gripper in self.latest_joint_positions for gripper in self.gripper_order):
+            return
+
+        data_list = [
+            round(math.degrees(self.latest_joint_positions[joint]), 3)
+            for joint in self.rviz_order
+        ]
+        gripper_list = [
+            map_rad_to_1_100(self.latest_joint_positions[gripper])
+            for gripper in self.gripper_order
+        ]
 
         print('data_list: {}'.format(data_list))
         self.mc.send_angles(data_list, 35)

@@ -3,7 +3,7 @@
  * @brief Packee-oriented MTC service node that delegates product verification to the vision stack and
  *        executes MoveIt Task Constructor plans once vision grants control.
  *
- * The node exposes a StartMtc service. Each incoming request contains a list of sequences (product_id + pose data).
+ * The node exposes a PackeeMainStartMTC service. Each incoming request contains a list of sequences (product_id + pose data).
  * For every sequence we:
  *   1. Forward the product id to the Packee vision detection service.
  *   2. While vision owns control, continuously monitor the robot joint state without issuing any command.
@@ -57,16 +57,17 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 #include "shopee_interfaces/msg/sequence.hpp"
+#include "shopee_interfaces/srv/arm_pick_product.hpp"
 #include "shopee_interfaces/srv/packee_arm_packing_complete.hpp"
-#include "shopee_interfaces/srv/packee_vision_detect_products_in_cart.hpp"
-#include "shopee_interfaces/srv/start_mtc.hpp"
+#include "shopee_interfaces/srv/packee_main_start_mtc.hpp"
 
 namespace mtc = moveit::task_constructor;
 
 namespace {
 
 using SequenceMsg = shopee_interfaces::msg::Sequence;
-using VisionDetect = shopee_interfaces::srv::PackeeVisionDetectProductsInCart;
+using ArmPickProduct = shopee_interfaces::srv::ArmPickProduct;
+using PackeeMainStartMTC = shopee_interfaces::srv::PackeeMainStartMTC;
 using PackingComplete = shopee_interfaces::srv::PackeeArmPackingComplete;
 
 struct SequenceResult {
@@ -93,7 +94,6 @@ geometry_msgs::msg::PoseStamped toPoseStamped(const SequenceMsg& sequence, const
 
 class MtcOrchestrator : public rclcpp::Node {
 public:
-  using StartMtc = shopee_interfaces::srv::StartMtc;
 
   explicit MtcOrchestrator(const rclcpp::NodeOptions& options)
   : rclcpp::Node("packee_mtc_orchestrator", options) {
@@ -119,11 +119,11 @@ public:
     world_frame_ = declare_string("world_frame", "world", "Reference frame for sequence poses.");
 
     vision_service_name_ = declare_string(
-      "vision_service_name", "packee_vision_detect_products_in_cart",
-      "Service used to delegate product verification to vision.");
+      "vision_service_name", "/packee/picking/ibvs",
+      "Service used to delegate product verification to the IBVS picking interface.");
     packing_complete_service_name_ = declare_string(
-      "packing_complete_service_name", "packee_arm_packing_complete",
-      "Service used to notify packing completion.");
+      "packing_complete_service_name", "/packee/mtc/finish",
+      "Service used to notify Packee MTC completion.");
     joint_state_topic_ = declare_string(
       "joint_state_topic", "joint_states",
       "Topic used for monitoring robot joint state.");
@@ -183,8 +183,8 @@ public:
       "pause_between_sequences_ms", 3000.0,
       "Delay (ms) between processing consecutive sequences.");
 
-    start_mtc_service_ = this->create_service<StartMtc>(
-      "/mtc/start",
+    start_mtc_service_ = this->create_service<PackeeMainStartMTC>(
+      "/packee/mtc/startmtc",
       std::bind(&MtcOrchestrator::handleStartMtc, this, std::placeholders::_1, std::placeholders::_2));
 
     rclcpp::NodeOptions vision_options;
@@ -193,7 +193,7 @@ public:
     vision_proxy_node_ = std::make_shared<rclcpp::Node>(
       std::string(this->get_name()) + "_vision_proxy", vision_options);
 
-    vision_client_ = vision_proxy_node_->create_client<VisionDetect>(vision_service_name_);
+    vision_client_ = vision_proxy_node_->create_client<ArmPickProduct>(vision_service_name_);
     packing_complete_client_ = vision_proxy_node_->create_client<PackingComplete>(packing_complete_service_name_);
 
     joint_state_subscription_ = this->create_subscription<sensor_msgs::msg::JointState>(
@@ -204,18 +204,18 @@ public:
       std::chrono::milliseconds(monitor_interval_ms_),
       std::bind(&MtcOrchestrator::monitorRobotState, this));
 
-    RCLCPP_INFO(this->get_logger(), "Packee MTC orchestrator initialised. Awaiting StartMtc requests.");
+    RCLCPP_INFO(this->get_logger(), "Packee MTC orchestrator initialised. Awaiting PackeeMainStartMTC requests.");
   }
 
 private:
-  void handleStartMtc(const std::shared_ptr<StartMtc::Request> request,
-                      std::shared_ptr<StartMtc::Response> response) {
+  void handleStartMtc(const std::shared_ptr<PackeeMainStartMTC::Request> request,
+                      std::shared_ptr<PackeeMainStartMTC::Response> response) {
     {
       std::lock_guard<std::mutex> guard(task_mutex_);
       if (task_in_progress_) {
         response->success = false;
-        response->message = "A StartMtc sequence is already in progress.";
-        RCLCPP_WARN(this->get_logger(), "Rejected StartMtc request: task already running.");
+        response->message = "A PackeeMainStartMTC sequence is already in progress.";
+        RCLCPP_WARN(this->get_logger(), "Rejected PackeeMainStartMTC request: task already running.");
         return;
       }
       task_in_progress_ = true;
@@ -228,7 +228,7 @@ private:
       }
       response->success = false;
       response->message = "No sequences provided.";
-      RCLCPP_WARN(this->get_logger(), "StartMtc request rejected: empty sequence list.");
+      RCLCPP_WARN(this->get_logger(), "PackeeMainStartMTC request rejected: empty sequence list.");
       return;
     }
 
@@ -238,10 +238,10 @@ private:
     const std::size_t total_sequences = request_copy.sequences.size();
 
     response->success = true;
-    response->message = "StartMtc request accepted (" + std::to_string(total_sequences) + " sequences).";
+    response->message = "PackeeMainStartMTC request accepted (" + std::to_string(total_sequences) + " sequences).";
 
     RCLCPP_INFO(this->get_logger(),
-                "Accepted StartMtc request: robot_id=%d order_id=%d total_sequences=%zu",
+                "Accepted PackeeMainStartMTC request: robot_id=%d order_id=%d total_sequences=%zu",
                 request_copy.robot_id, request_copy.order_id, total_sequences);
 
     if (worker_future_.valid()) {
@@ -254,7 +254,7 @@ private:
     });
   }
 
-  void processSequences(StartMtc::Request request) {
+  void processSequences(PackeeMainStartMTC::Request request) {
     ensureMoveGroupInterfaces();
 
     auto sequences = request.sequences;
@@ -337,7 +337,7 @@ private:
       RCLCPP_ERROR(this->get_logger(), "%s", final_message.c_str());
     }
 
-    if (!sendPackingComplete(overall_success, final_message)) {
+    if (!sendPackingComplete(request, overall_success, final_message)) {
       RCLCPP_ERROR(this->get_logger(),
                    "Failed to notify packing completion service for order_id=%d.",
                    request.order_id);
@@ -664,7 +664,7 @@ private:
     }
   }
 
-  bool delegateToVision(const StartMtc::Request& request,
+  bool delegateToVision(const PackeeMainStartMTC::Request& request,
                         const SequenceMsg& sequence,
                         std::string& message,
                         std::int32_t& total_detected) {
@@ -673,10 +673,17 @@ private:
       return false;
     }
 
-    auto service_request = std::make_shared<VisionDetect::Request>();
+    auto service_request = std::make_shared<ArmPickProduct::Request>();
     service_request->robot_id = request.robot_id;
     service_request->order_id = request.order_id;
-    service_request->expected_product_id = sequence.id;
+    service_request->product_id = sequence.id;
+    service_request->arm_side = "left";
+    service_request->pose.x = 0.0F;
+    service_request->pose.y = 0.0F;
+    service_request->pose.z = 0.0F;
+    service_request->pose.rx = 0.0F;
+    service_request->pose.ry = 0.0F;
+    service_request->pose.rz = 0.0F;
 
     beginMonitoring(sequence);
     auto monitoring_reset = rcpputils::make_scope_exit([this]() { endMonitoring(); });
@@ -697,12 +704,14 @@ private:
     }
 
     const auto response = future.get();
-    total_detected = response->total_detected;
+    total_detected = 0;
     message = response->message;
     return response->success;
   }
 
-  bool sendPackingComplete(bool success, const std::string& message) {
+  bool sendPackingComplete(const PackeeMainStartMTC::Request& start_request,
+                           bool success,
+                           const std::string& message) {
     if (!waitForService(packing_complete_client_, packing_complete_service_name_)) {
       RCLCPP_ERROR(this->get_logger(),
                    "Packing completion service '%s' unavailable.",
@@ -711,6 +720,9 @@ private:
     }
 
     auto completion_request = std::make_shared<PackingComplete::Request>();
+    completion_request->robot_id = start_request.robot_id;
+    completion_request->order_id = start_request.order_id;
+    completion_request->sequences = start_request.sequences;
     completion_request->success = success;
     completion_request->message = message;
 
@@ -903,9 +915,9 @@ private:
   double gripper_velocity_scaling_{ 0.3 };
   double gripper_acceleration_scaling_{ 0.3 };
 
-  rclcpp::Service<StartMtc>::SharedPtr start_mtc_service_;
+  rclcpp::Service<PackeeMainStartMTC>::SharedPtr start_mtc_service_;
   rclcpp::Node::SharedPtr vision_proxy_node_;
-  rclcpp::Client<VisionDetect>::SharedPtr vision_client_;
+  rclcpp::Client<ArmPickProduct>::SharedPtr vision_client_;
   rclcpp::Client<PackingComplete>::SharedPtr packing_complete_client_;
 
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_subscription_;
