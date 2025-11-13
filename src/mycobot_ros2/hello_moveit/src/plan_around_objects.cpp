@@ -158,9 +158,38 @@ int main(int argc, char* argv[])
                               /*py=*/span_y * 0.5,
                               /*pz=*/zc);
 
+  // Mirror fence across X-axis: 15mm narrower in X (span_x) and 65mm tall (gap identical)
+  const double span_x_mirror = span_x - 0.015;  // 15 mm narrower width
+  const double span_x_center = span_x * 0.5;
+  const double half_span_x_mirror = span_x_mirror * 0.5;
+  const double span_y_mirror = span_y;          // same depth as original
+  const double height_mirror = 0.065;           // 65 mm tall (20 mm shorter than before)
+  const double zc_mirror = gap + height_mirror * 0.5;
+
+  auto fence_south_mirror = make_box("fence_south_mirror", span_x_mirror, thick, height_mirror,
+                                     /*px=*/span_x_center,
+                                     /*py=*/-thick * 0.5,
+                                     /*pz=*/zc_mirror);
+
+  auto fence_north_mirror = make_box("fence_north_mirror", span_x_mirror, thick, height_mirror,
+                                     /*px=*/span_x_center,
+                                     /*py=*/-(span_y_mirror - thick * 0.5),
+                                     /*pz=*/zc_mirror);
+
+  auto fence_west_mirror  = make_box("fence_west_mirror", thick, span_y_mirror, height_mirror,
+                                     /*px=*/span_x_center - half_span_x_mirror + thick * 0.5,
+                                     /*py=*/-span_y_mirror * 0.5,
+                                     /*pz=*/zc_mirror);
+
+  auto fence_east_mirror  = make_box("fence_east_mirror", thick, span_y_mirror, height_mirror,
+                                     /*px=*/span_x_center + half_span_x_mirror - thick * 0.5,
+                                     /*py=*/-span_y_mirror * 0.5,
+                                     /*pz=*/zc_mirror);
+
   planning_scene_interface.applyCollisionObjects(
       std::vector<moveit_msgs::msg::CollisionObject>{
-          fence_south, fence_north, fence_west, fence_east});
+          fence_south, fence_north, fence_west, fence_east,
+          fence_south_mirror, fence_north_mirror, fence_west_mirror, fence_east_mirror});
   // =========================================================
 
   prompt("Press 'next' in the RvizVisualToolsGui window to plan");

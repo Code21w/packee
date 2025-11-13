@@ -182,37 +182,37 @@ public:
     };
 
     pause_before_vision_request_ = declare_pause_ms(
-      "pause_before_vision_request_ms", 5000.0,
+      "pause_before_vision_request_ms", 3000.0,
       "Delay (ms) before requesting coordinates from the vision stack.");
     pause_before_pick_approach_ = declare_pause_ms(
-      "pause_before_pick_approach_ms", 5000.0,
+      "pause_before_pick_approach_ms", 3000.0,
       "Delay (ms) before commanding the approach motion toward the detected pose.");
     pause_before_pick_descent_ = declare_pause_ms(
-      "pause_before_pick_descent_ms", 5000.0,
+      "pause_before_pick_descent_ms", 3000.0,
       "Delay (ms) before descending onto the detected pose.");
     pause_before_pick_grip_close_ = declare_pause_ms(
       "pause_before_pick_grip_close_ms", 5000.0,
       "Delay (ms) before closing the gripper around the object.");
     pause_before_pick_lift_ = declare_pause_ms(
-      "pause_before_pick_lift_ms", 5000.0,
+      "pause_before_pick_lift_ms", 3000.0,
       "Delay (ms) before lifting the object after grasping.");
     pause_before_home_ = declare_pause_ms(
-      "pause_before_home_ms", 5000.0,
+      "pause_before_home_ms", 3000.0,
       "Delay (ms) before returning to the configured home posture.");
     pause_before_place_move_ = declare_pause_ms(
-      "pause_before_place_move_ms", 5000.0,
+      "pause_before_place_move_ms", 3000.0,
       "Delay (ms) before commanding the approach motion toward the place pose.");
     pause_before_descent_ = declare_pause_ms(
-      "pause_before_descent_ms", 5000.0,
+      "pause_before_descent_ms", 3000.0,
       "Delay (ms) before descending onto the place pose.");
     pause_before_release_ = declare_pause_ms(
-      "pause_before_release_ms", 5000.0,
+      "pause_before_release_ms", 3000.0,
       "Delay (ms) before opening the gripper to release the object.");
     pause_before_retreat_ = declare_pause_ms(
-      "pause_before_retreat_ms", 5000.0,
+      "pause_before_retreat_ms", 3000.0,
       "Delay (ms) before retreating upward after releasing the object.");
     pause_between_sequences_ = declare_pause_ms(
-      "pause_between_sequences_ms", 5000.0,
+      "pause_between_sequences_ms", 3000.0,
       "Delay (ms) between processing consecutive sequences.");
 
     start_mtc_service_ = this->create_service<PackeeMainStartMTC>(
@@ -427,7 +427,7 @@ private:
   }
 
   bool planAndExecutePickRoutine(const Pose6DMsg& detected_pose, std::string& message) {
-    constexpr double approach_offset = 0.05;  // meters
+    constexpr double approach_offset = 0.025;  // meters
 
     const auto target_pose = toPoseStamped(detected_pose, world_frame_);
     auto approach_pose = target_pose;
@@ -481,7 +481,7 @@ private:
   }
 
   bool planAndExecuteSequence(const SequenceMsg& sequence, std::string& message) {
-    constexpr double place_offset = 0.05;  // meters
+    constexpr double place_offset = 0.025;  // meters
 
     const auto target_pose = toPoseStamped(sequence, world_frame_);
     auto approach_pose = target_pose;
@@ -839,6 +839,16 @@ private:
     if (response->products.empty()) {
       message += " (vision returned no detections)";
       return false;
+    }
+
+    for (std::size_t index = 0; index < response->products.size(); ++index) {
+      const auto& product = response->products[index];
+      const auto& pose = product.pose;
+      RCLCPP_INFO(this->get_logger(),
+                  "Vision service pose #%zu for product_id=%d: xyz=[%.3f, %.3f, %.3f], rpy=[%.3f, %.3f, %.3f]",
+                  index + 1, product.product_id,
+                  pose.x, pose.y, pose.z,
+                  pose.rx, pose.ry, pose.rz);
     }
 
     detected_pose = response->products.front().pose;

@@ -34,12 +34,11 @@ class VisionDetectMock(Node):
         self._default_confidence = 1.0
         self._default_arm_side = 'left'
         # Update these coordinates as needed; the mock cycles through them per request.
-        self._pose_sequence = [
-            {'x': 0.11, 'y': -0.175, 'z': 0.015, 'rx': 0.0, 'ry': 1.5707, 'rz': 0.0},  # 1
-            {'x': 0.078, 'y': -0.210, 'z': 0.02, 'rx': 0.0, 'ry': 1.5707, 'rz': 0.0},  # 2
-            {'x': 0.1115, 'y': -0.053, 'z': 0.02, 'rx': 0.0, 'ry': 1.5707, 'rz': 0.0},  # 3
-            {'x': 0.1115, 'y': -0.1015, 'z': 0.0135, 'rx': 0.0, 'ry': 1.5707, 'rz': 0.0},  # 4
-            {'x': 0.164, 'y': -0.161, 'z': 0.027, 'rx': 0.0, 'ry': 1.5707, 'rz': 0.0},   # 5
+        self._pose_sequence = [   
+            {'x': 0.081, 'y': -0.186, 'z': 0.035, 'rx': 0.0, 'ry': 1.5707, 'rz': 0.0},  # 사과
+            {'x': 0.081, 'y': -0.1181, 'z': 0.03, 'rx': 0.0, 'ry': 1.5707, 'rz': 0.0},  #이클립스
+            {'x': 0.114, 'y': -0.067, 'z': 0.03, 'rx': 0.0, 'ry': 1.5707, 'rz': 0.0},  # 와사비
+            {'x': 0.155, 'y': -0.15, 'z': 0.045, 'rx': 0.0, 'ry': 1.5707, 'rz': -1.5707},  #두유
         ]
         self._pose_index = 0
 
